@@ -2,6 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admin Dashboard</title>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -12,53 +13,72 @@
 body{
   margin:0;
   font-family:system-ui;
-  background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+  background:#0f2027;
   color:white;
 }
+
 .container{
-  max-width:1100px;
-  margin:auto;
-  padding:30px;
+  padding:15px;
+  max-width:100%;
 }
+
 .card{
-  background:rgba(255,255,255,0.08);
-  backdrop-filter:blur(20px);
-  padding:25px;
-  border-radius:16px;
-  margin-bottom:20px;
+  background:#1c2b3a;
+  padding:15px;
+  border-radius:12px;
+  margin-bottom:15px;
 }
+
+h2{
+  margin:0 0 10px 0;
+  font-size:18px;
+}
+
 input{
+  width:100%;
   padding:10px;
-  border:none;
+  margin-bottom:10px;
   border-radius:8px;
-  margin:5px 5px 5px 0;
+  border:none;
 }
+
 button{
-  padding:8px 12px;
+  padding:8px 10px;
   border:none;
-  border-radius:8px;
+  border-radius:6px;
+  font-size:12px;
   cursor:pointer;
-  margin:3px;
+  margin:3px 3px 3px 0;
 }
+
 .primary{ background:#0072ff; color:white; }
 .danger{ background:#ff4d4d; color:white; }
-.secondary{ background:#888; color:white; }
+.secondary{ background:#666; color:white; }
 .success{ background:#00aa66; color:white; }
 
-table{
-  width:100%;
-  border-collapse:collapse;
-  font-size:13px;
+.keyCard{
+  background:#15222e;
+  padding:10px;
+  border-radius:10px;
+  margin-bottom:8px;
+  font-size:12px;
 }
-th,td{
-  padding:8px;
-  border-bottom:1px solid rgba(255,255,255,0.1);
-  text-align:left;
+
+.keyHeader{
+  font-weight:600;
+  margin-bottom:5px;
+  word-break:break-all;
 }
+
 .status-used{ color:#00ff99; }
 .status-unused{ color:#ffaa00; }
 .status-blocked{ color:#ff4d4d; }
-.status-expired{ color:#ff66ff; }
+
+.flex{
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px;
+}
 </style>
 </head>
 <body>
@@ -69,39 +89,25 @@ th,td{
 <h2>Admin Login</h2>
 <input type="email" id="email" placeholder="Email">
 <input type="password" id="password" placeholder="Password">
-<button class="primary" onclick="login()">Login</button>
+<button class="primary" id="loginBtn">Login</button>
 </div>
 
 <div id="dashboard" style="display:none;">
 
 <div class="card">
 <h2>Generate Key</h2>
-
 <input type="text" id="customKey" placeholder="Custom Key (optional)">
 <input type="number" id="duration" placeholder="Duration (hours)">
 <input type="number" id="maxDevices" placeholder="Max Devices (default 1)">
-<button class="primary" onclick="generateKey()">Generate</button>
-<button class="secondary" onclick="logout()">Logout</button>
-
+<button class="primary" id="generateBtn">Generate</button>
+<button class="secondary" id="logoutBtn">Logout</button>
 <div id="genOutput"></div>
 </div>
 
 <div class="card">
 <h2>All Keys</h2>
 <div id="stats"></div>
-<table>
-<thead>
-<tr>
-<th>Key</th>
-<th>Status</th>
-<th>Duration</th>
-<th>Used By</th>
-<th>Devices</th>
-<th>Actions</th>
-</tr>
-</thead>
-<tbody id="keysTable"></tbody>
-</table>
+<div id="keysContainer"></div>
 </div>
 
 </div>
@@ -121,11 +127,9 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-/* ================= LOGIN PERSISTENCE ================= */
-
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
-/* ================= AUTH STATE ================= */
+/* ================= AUTH ================= */
 
 auth.onAuthStateChanged(async user => {
 
@@ -145,19 +149,6 @@ auth.onAuthStateChanged(async user => {
   loadKeys();
 });
 
-/* ================= LOGIN ================= */
-
-function login(){
-  auth.signInWithEmailAndPassword(
-    document.getElementById("email").value,
-    document.getElementById("password").value
-  ).catch(e=>alert(e.message));
-}
-
-function logout(){
-  auth.signOut();
-}
-
 function showLogin(){
   document.getElementById("loginBox").style.display="block";
   document.getElementById("dashboard").style.display="none";
@@ -168,7 +159,18 @@ function showDashboard(){
   document.getElementById("dashboard").style.display="block";
 }
 
-/* ================= KEY GENERATOR ================= */
+/* ================= LOGIN ================= */
+
+document.getElementById("loginBtn").onclick = () => {
+  auth.signInWithEmailAndPassword(
+    document.getElementById("email").value,
+    document.getElementById("password").value
+  ).catch(e=>alert(e.message));
+};
+
+document.getElementById("logoutBtn").onclick = () => auth.signOut();
+
+/* ================= GENERATE KEY ================= */
 
 function generateRandomKey(){
   const chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -181,7 +183,7 @@ function generateRandomKey(){
   return key;
 }
 
-async function generateKey(){
+document.getElementById("generateBtn").onclick = async () => {
 
   const custom = document.getElementById("customKey").value.trim();
   const duration = parseInt(document.getElementById("duration").value);
@@ -204,78 +206,83 @@ async function generateKey(){
 
   document.getElementById("genOutput").innerText="Generated: "+key;
   loadKeys();
-}
+};
 
 /* ================= LOAD KEYS ================= */
 
 async function loadKeys(){
 
   const snapshot = await db.collection("keys").get();
-  const table = document.getElementById("keysTable");
-  table.innerHTML="";
+  const container = document.getElementById("keysContainer");
+  container.innerHTML="";
 
-  let total=0, used=0, blocked=0, expired=0;
+  let total=0, used=0, blocked=0;
 
   snapshot.forEach(doc=>{
     total++;
     const d=doc.data();
+
     let status="Unused";
-    let className="status-unused";
+    let statusClass="status-unused";
 
     if(d.blocked){
       status="Blocked";
-      className="status-blocked";
+      statusClass="status-blocked";
       blocked++;
     }
     else if(d.used){
       status="Used";
-      className="status-used";
+      statusClass="status-used";
       used++;
     }
 
-    const row=`
-      <tr>
-        <td>${doc.id}</td>
-        <td class="${className}">${status}</td>
-        <td>${d.duration_hours}h</td>
-        <td>${d.used_by||"-"}</td>
-        <td>${d.devices?.length||0}</td>
-        <td>
-          <button class="secondary" onclick="editKey('${doc.id}',${d.duration_hours})">Edit</button>
-          <button class="danger" onclick="deleteKey('${doc.id}')">Delete</button>
-          <button class="primary" onclick="blockKey('${doc.id}')">Block</button>
-        </td>
-      </tr>
+    const card=document.createElement("div");
+    card.className="keyCard";
+
+    card.innerHTML=`
+      <div class="keyHeader">${doc.id}</div>
+      <div class="${statusClass}">${status}</div>
+      <div>Duration: ${d.duration_hours}h</div>
+      <div>Used By: ${d.used_by||"-"}</div>
+      <div class="flex">
+        <button class="secondary">Edit</button>
+        <button class="danger">Delete</button>
+        <button class="primary">Block</button>
+      </div>
     `;
-    table.innerHTML+=row;
+
+    const buttons=card.querySelectorAll("button");
+
+    // Edit
+    buttons[0].onclick=async()=>{
+      const newDuration=prompt("New duration:",d.duration_hours);
+      if(newDuration){
+        await db.collection("keys").doc(doc.id)
+          .update({duration_hours:parseInt(newDuration)});
+        loadKeys();
+      }
+    };
+
+    // Delete
+    buttons[1].onclick=async()=>{
+      if(confirm("Delete key?")){
+        await db.collection("keys").doc(doc.id).delete();
+        loadKeys();
+      }
+    };
+
+    // Block
+    buttons[2].onclick=async()=>{
+      await db.collection("keys").doc(doc.id)
+        .update({blocked:true});
+      loadKeys();
+    };
+
+    container.appendChild(card);
   });
 
   document.getElementById("stats").innerText=
     `Total:${total} | Used:${used} | Blocked:${blocked}`;
-}
-
-/* ================= ACTIONS ================= */
-
-async function deleteKey(key){
-  if(confirm("Delete key?")){
-    await db.collection("keys").doc(key).delete();
-    loadKeys();
-  }
-}
-
-async function blockKey(key){
-  await db.collection("keys").doc(key).update({blocked:true});
-  loadKeys();
-}
-
-async function editKey(key,currentDuration){
-  const newDuration=prompt("New duration (hours):",currentDuration);
-  if(newDuration){
-    await db.collection("keys").doc(key).update({
-      duration_hours:parseInt(newDuration)
-    });
-    loadKeys();
-  }
 }
 
 </script>
