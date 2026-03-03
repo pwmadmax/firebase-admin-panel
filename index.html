@@ -1,51 +1,114 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Admin Dashboard</title>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <style>
-    body {
-      background:#111;
-      color:white;
-      font-family:sans-serif;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      padding-top:50px;
-    }
-    input, button {
-      padding:10px;
-      margin:5px;
-      border-radius:6px;
-      border:none;
-    }
-    button {
-      background:#0088cc;
-      color:white;
-      cursor:pointer;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Admin Dashboard</title>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+body{
+  margin:0;
+  font-family:system-ui;
+  background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+  color:white;
+}
+.container{
+  max-width:1100px;
+  margin:auto;
+  padding:30px;
+}
+.card{
+  background:rgba(255,255,255,0.08);
+  backdrop-filter:blur(20px);
+  padding:25px;
+  border-radius:16px;
+  margin-bottom:20px;
+}
+input{
+  padding:10px;
+  border:none;
+  border-radius:8px;
+  margin:5px 5px 5px 0;
+}
+button{
+  padding:8px 12px;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+  margin:3px;
+}
+.primary{ background:#0072ff; color:white; }
+.danger{ background:#ff4d4d; color:white; }
+.secondary{ background:#888; color:white; }
+.success{ background:#00aa66; color:white; }
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px;
+}
+th,td{
+  padding:8px;
+  border-bottom:1px solid rgba(255,255,255,0.1);
+  text-align:left;
+}
+.status-used{ color:#00ff99; }
+.status-unused{ color:#ffaa00; }
+.status-blocked{ color:#ff4d4d; }
+.status-expired{ color:#ff66ff; }
+</style>
 </head>
 <body>
 
-<h2>Admin Login</h2>
+<div class="container">
 
-<div id="loginBox">
-  <input type="email" id="email" placeholder="Email"><br>
-  <input type="password" id="password" placeholder="Password"><br>
-  <button onclick="login()">Login</button>
+<div id="loginBox" class="card">
+<h2>Admin Login</h2>
+<input type="email" id="email" placeholder="Email">
+<input type="password" id="password" placeholder="Password">
+<button class="primary" onclick="login()">Login</button>
 </div>
 
 <div id="dashboard" style="display:none;">
-  <h2>Generate Key</h2>
-  <input type="number" id="duration" placeholder="Duration (hours)">
-  <button onclick="generateKey()">Generate</button>
-  <p id="output"></p>
+
+<div class="card">
+<h2>Generate Key</h2>
+
+<input type="text" id="customKey" placeholder="Custom Key (optional)">
+<input type="number" id="duration" placeholder="Duration (hours)">
+<input type="number" id="maxDevices" placeholder="Max Devices (default 1)">
+<button class="primary" onclick="generateKey()">Generate</button>
+<button class="secondary" onclick="logout()">Logout</button>
+
+<div id="genOutput"></div>
+</div>
+
+<div class="card">
+<h2>All Keys</h2>
+<div id="stats"></div>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Status</th>
+<th>Duration</th>
+<th>Used By</th>
+<th>Devices</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody id="keysTable"></tbody>
+</table>
+</div>
+
+</div>
 </div>
 
 <script>
+
 const firebaseConfig = {
   apiKey: "AIzaSyCunwuvg0saSDxN7HbNwmwaIdOuBYA-tX0",
   authDomain: "pw--login.firebaseapp.com",
@@ -58,38 +121,163 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-function login(){
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
+/* ================= LOGIN PERSISTENCE ================= */
 
-  auth.signInWithEmailAndPassword(email, password)
-    .then(() => {
-      document.getElementById("loginBox").style.display="none";
-      document.getElementById("dashboard").style.display="block";
-    })
-    .catch(err => alert(err.message));
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+/* ================= AUTH STATE ================= */
+
+auth.onAuthStateChanged(async user => {
+
+  if(!user){
+    showLogin();
+    return;
+  }
+
+  const adminDoc = await db.collection("admins").doc(user.uid).get();
+  if(!adminDoc.exists){
+    alert("Not authorized");
+    auth.signOut();
+    return;
+  }
+
+  showDashboard();
+  loadKeys();
+});
+
+/* ================= LOGIN ================= */
+
+function login(){
+  auth.signInWithEmailAndPassword(
+    document.getElementById("email").value,
+    document.getElementById("password").value
+  ).catch(e=>alert(e.message));
+}
+
+function logout(){
+  auth.signOut();
+}
+
+function showLogin(){
+  document.getElementById("loginBox").style.display="block";
+  document.getElementById("dashboard").style.display="none";
+}
+
+function showDashboard(){
+  document.getElementById("loginBox").style.display="none";
+  document.getElementById("dashboard").style.display="block";
+}
+
+/* ================= KEY GENERATOR ================= */
+
+function generateRandomKey(){
+  const chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let key="";
+  const arr=new Uint32Array(10);
+  crypto.getRandomValues(arr);
+  for(let i=0;i<10;i++){
+    key+=chars[arr[i]%chars.length];
+  }
+  return key;
 }
 
 async function generateKey(){
 
+  const custom = document.getElementById("customKey").value.trim();
   const duration = parseInt(document.getElementById("duration").value);
+  const maxDevices = parseInt(document.getElementById("maxDevices").value)||1;
 
-  if(!duration){
-    alert("Enter duration");
-    return;
-  }
+  if(!duration){ alert("Enter duration"); return; }
 
-  const key = Math.random().toString(36).substring(2,10).toUpperCase();
+  const key = custom || generateRandomKey();
 
   await db.collection("keys").doc(key).set({
     active:true,
+    blocked:false,
     used:false,
+    used_by:"",
     duration_hours:duration,
-    used_by:""
+    max_devices:maxDevices,
+    devices:[],
+    created_at: firebase.firestore.FieldValue.serverTimestamp()
   });
 
-  document.getElementById("output").innerText="Generated Key: " + key;
+  document.getElementById("genOutput").innerText="Generated: "+key;
+  loadKeys();
 }
+
+/* ================= LOAD KEYS ================= */
+
+async function loadKeys(){
+
+  const snapshot = await db.collection("keys").get();
+  const table = document.getElementById("keysTable");
+  table.innerHTML="";
+
+  let total=0, used=0, blocked=0, expired=0;
+
+  snapshot.forEach(doc=>{
+    total++;
+    const d=doc.data();
+    let status="Unused";
+    let className="status-unused";
+
+    if(d.blocked){
+      status="Blocked";
+      className="status-blocked";
+      blocked++;
+    }
+    else if(d.used){
+      status="Used";
+      className="status-used";
+      used++;
+    }
+
+    const row=`
+      <tr>
+        <td>${doc.id}</td>
+        <td class="${className}">${status}</td>
+        <td>${d.duration_hours}h</td>
+        <td>${d.used_by||"-"}</td>
+        <td>${d.devices?.length||0}</td>
+        <td>
+          <button class="secondary" onclick="editKey('${doc.id}',${d.duration_hours})">Edit</button>
+          <button class="danger" onclick="deleteKey('${doc.id}')">Delete</button>
+          <button class="primary" onclick="blockKey('${doc.id}')">Block</button>
+        </td>
+      </tr>
+    `;
+    table.innerHTML+=row;
+  });
+
+  document.getElementById("stats").innerText=
+    `Total:${total} | Used:${used} | Blocked:${blocked}`;
+}
+
+/* ================= ACTIONS ================= */
+
+async function deleteKey(key){
+  if(confirm("Delete key?")){
+    await db.collection("keys").doc(key).delete();
+    loadKeys();
+  }
+}
+
+async function blockKey(key){
+  await db.collection("keys").doc(key).update({blocked:true});
+  loadKeys();
+}
+
+async function editKey(key,currentDuration){
+  const newDuration=prompt("New duration (hours):",currentDuration);
+  if(newDuration){
+    await db.collection("keys").doc(key).update({
+      duration_hours:parseInt(newDuration)
+    });
+    loadKeys();
+  }
+}
+
 </script>
 
 </body>
