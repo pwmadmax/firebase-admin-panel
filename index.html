@@ -13,14 +13,14 @@
 
 body{
 margin:0;
-font-family:system-ui;
+font-family:system-ui,-apple-system;
 background:#0b0f14;
 color:#e6edf3;
 }
 
 .container{
-padding:20px;
-max-width:1100px;
+padding:18px;
+max-width:1000px;
 margin:auto;
 }
 
@@ -28,31 +28,39 @@ margin:auto;
 background:#161b22;
 padding:18px;
 border-radius:12px;
-margin-bottom:18px;
+margin-bottom:20px;
 box-shadow:0 0 0 1px #30363d;
 }
 
 h2{
-margin:0 0 12px 0;
+margin:0 0 14px;
+font-weight:600;
 }
 
 input{
 width:100%;
-padding:10px;
-margin-bottom:10px;
-border-radius:6px;
+padding:12px;
+margin-bottom:12px;
+border-radius:8px;
 border:1px solid #30363d;
 background:#0d1117;
 color:white;
+font-size:14px;
 }
 
 button{
-padding:7px 12px;
+padding:9px 14px;
 border:none;
-border-radius:6px;
-font-size:12px;
+border-radius:8px;
+font-size:13px;
 cursor:pointer;
-margin:4px;
+}
+
+.btnRow{
+display:flex;
+flex-wrap:wrap;
+gap:8px;
+margin-bottom:10px;
 }
 
 .primary{background:#238636;color:white}
@@ -62,46 +70,47 @@ margin:4px;
 .danger{background:#da3633;color:white}
 
 .stats{
-display:flex;
-flex-wrap:wrap;
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
 gap:10px;
-margin-bottom:15px;
+margin-bottom:16px;
 }
 
 .stat{
 background:#0d1117;
-padding:10px 14px;
+padding:12px;
 border-radius:8px;
 font-size:13px;
+text-align:center;
 border:1px solid #30363d;
 }
 
 .grid{
 display:grid;
-grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
 gap:12px;
 }
 
 .keyCard{
 background:#0d1117;
 border:1px solid #30363d;
-padding:14px;
+padding:16px;
 border-radius:10px;
 }
 
 .keyHeader{
 font-weight:600;
+font-size:15px;
 margin-bottom:6px;
 word-break:break-all;
-font-size:16px;
 }
 
 .badge{
-padding:3px 7px;
+padding:4px 8px;
 border-radius:6px;
 font-size:11px;
-margin-bottom:8px;
 display:inline-block;
+margin-bottom:8px;
 }
 
 .active{background:#2ea043}
@@ -110,21 +119,36 @@ display:inline-block;
 .unused{background:#6e7681}
 
 .generatedBox{
-margin-top:10px;
-padding:12px;
+margin-top:14px;
+padding:16px;
+border-radius:10px;
 background:#0d1117;
 border:1px solid #30363d;
-border-radius:8px;
 }
 
 .generatedKey{
-font-size:18px;
+font-size:20px;
 font-weight:600;
 margin-bottom:6px;
+word-break:break-all;
+}
+
+.keyGuide{
+margin-top:10px;
+font-size:12px;
+line-height:1.5;
+color:#9da7b3;
+background:#0b0f14;
+padding:10px;
+border-radius:8px;
+border:1px dashed #30363d;
 }
 
 .actions{
-margin-top:8px;
+display:flex;
+flex-wrap:wrap;
+gap:6px;
+margin-top:10px;
 }
 
 </style>
@@ -151,8 +175,10 @@ margin-top:8px;
 <input id="durationInput" type="number" placeholder="Duration (hours)">
 <input id="note" placeholder="Note (optional)">
 
+<div class="btnRow">
 <button class="primary" id="generateBtn">Generate Key</button>
 <button class="secondary" id="logoutBtn">Logout</button>
+</div>
 
 <div id="genOutput"></div>
 
@@ -188,6 +214,15 @@ const db=firebase.firestore();
 
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
+/* LOGIN */
+
+loginBtn.onclick=()=>{
+auth.signInWithEmailAndPassword(email.value,password.value)
+.catch(e=>alert(e.message));
+};
+
+logoutBtn.onclick=()=>auth.signOut();
+
 /* AUTH */
 
 auth.onAuthStateChanged(async user=>{
@@ -213,31 +248,16 @@ loadKeys();
 
 });
 
-/* LOGIN */
-
-loginBtn.onclick=()=>{
-auth.signInWithEmailAndPassword(email.value,password.value)
-.catch(e=>alert(e.message));
-};
-
-logoutBtn.onclick=()=>auth.signOut();
-
 /* KEY GENERATOR */
 
 function generateRandomKey(){
-
 const chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 let key="";
-
 for(let i=0;i<10;i++){
 key+=chars[Math.floor(Math.random()*chars.length)];
 }
-
 return key;
-
 }
-
-/* GENERATE KEY */
 
 generateBtn.onclick=async()=>{
 
@@ -272,24 +292,65 @@ activated_at:null,
 access_expires:null
 });
 
-/* Generated Key UI */
+const message=`🔐 Access Key
+
+Key: ${key}
+Duration: ${duration} hours
+Note: ${noteText || "-"}
+
+Usage Guide:
+• Key works on ONE device only
+• Do not clear app data
+• Do not share the key
+• Key will expire automatically`;
 
 genOutput.innerHTML=`
+
 <div class="generatedBox">
 
 <div>Generated Key</div>
-
 <div class="generatedKey">${key}</div>
 
 <div>Duration: ${duration} hours</div>
 <div>Note: ${noteText || "-"}</div>
 
+<div class="btnRow">
 <button class="success" onclick="copyKey('${key}')">Copy Key</button>
+<button class="primary" onclick="shareKey(\`${message}\`)">Share Key</button>
+</div>
+
+<div class="keyGuide">
+<b>Usage Guide</b><br>
+• Key works on ONE device only<br>
+• Do not clear app data<br>
+• Do not share the key publicly<br>
+• Key will expire automatically
+</div>
 
 </div>
+
 `;
 
 };
+
+/* SHARE */
+
+function shareKey(text){
+
+if(navigator.share){
+navigator.share({text:text});
+}else{
+navigator.clipboard.writeText(text);
+alert("Key info copied");
+}
+
+}
+
+/* COPY */
+
+function copyKey(key){
+navigator.clipboard.writeText(key);
+}
 
 /* LOAD KEYS */
 
@@ -347,7 +408,6 @@ card.className="keyCard";
 card.innerHTML=`
 
 <div class="keyHeader">${key}</div>
-
 <div class="badge ${status}">${label}</div>
 
 <div><b>Duration:</b> ${d.duration_hours}h</div>
@@ -384,10 +444,6 @@ stats.innerHTML=`
 }
 
 /* ACTIONS */
-
-function copyKey(key){
-navigator.clipboard.writeText(key);
-}
 
 async function extendKey(key,hours){
 
