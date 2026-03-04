@@ -139,7 +139,7 @@ margin-top:6px;
 <h2>Generate Key</h2>
 
 <input id="customKey" placeholder="Custom Key (optional)">
-<input id="duration" type="number" placeholder="Duration Hours">
+<input id="durationInput" type="number" placeholder="Duration Hours">
 <input id="maxDevices" type="number" placeholder="Max Devices (default 1)">
 <input id="note" placeholder="Notes (optional)">
 
@@ -183,12 +183,13 @@ const db=firebase.firestore();
 
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
-/* ================= AUTH ================= */
+/* AUTH */
 
 auth.onAuthStateChanged(async user=>{
 
 if(!user){
-showLogin();
+loginBox.style.display="block";
+dashboard.style.display="none";
 return;
 }
 
@@ -200,33 +201,23 @@ auth.signOut();
 return;
 }
 
-showDashboard();
+loginBox.style.display="none";
+dashboard.style.display="block";
+
 loadKeys();
 
 });
 
-function showLogin(){
-loginBox.style.display="block";
-dashboard.style.display="none";
-}
-
-function showDashboard(){
-loginBox.style.display="none";
-dashboard.style.display="block";
-}
-
-/* ================= LOGIN ================= */
+/* LOGIN */
 
 loginBtn.onclick=()=>{
-auth.signInWithEmailAndPassword(
-email.value,
-password.value
-).catch(e=>alert(e.message));
+auth.signInWithEmailAndPassword(email.value,password.value)
+.catch(e=>alert(e.message));
 };
 
 logoutBtn.onclick=()=>auth.signOut();
 
-/* ================= GENERATE KEY ================= */
+/* RANDOM KEY */
 
 function generateRandomKey(){
 
@@ -234,23 +225,21 @@ const chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
 let key="";
 
-const arr=new Uint32Array(10);
-
-crypto.getRandomValues(arr);
-
 for(let i=0;i<10;i++){
-key+=chars[arr[i]%chars.length];
+key+=chars[Math.floor(Math.random()*chars.length)];
 }
 
 return key;
 }
 
+/* GENERATE KEY */
+
 generateBtn.onclick=async()=>{
 
-const custom=customKey.value.trim();
-const duration=parseInt(duration.value);
-const max=parseInt(maxDevices.value)||1;
-const noteText=note.value||"";
+const custom=document.getElementById("customKey").value.trim();
+const duration=parseInt(document.getElementById("durationInput").value);
+const max=parseInt(document.getElementById("maxDevices").value)||1;
+const noteText=document.getElementById("note").value||"";
 
 if(!duration){
 alert("Enter duration");
@@ -269,7 +258,8 @@ devices:[],
 duration_hours:duration,
 max_devices:max,
 note:noteText,
-created_at:firebase.firestore.FieldValue.serverTimestamp(),
+created_at:firebase.firestore.Timestamp.now(),
+activated_at:null,
 access_expires:null
 
 });
@@ -278,7 +268,7 @@ genOutput.innerText="Generated: "+key;
 
 };
 
-/* ================= LOAD KEYS ================= */
+/* LOAD KEYS */
 
 function loadKeys(){
 
@@ -323,15 +313,21 @@ active++;
 unused++;
 }
 
-const card=document.createElement("div");
+let activated="Not activated";
 
-card.className="keyCard";
+if(d.activated_at){
+activated=d.activated_at.toDate().toLocaleString();
+}
 
 let expires="Not activated";
 
 if(d.access_expires){
 expires=d.access_expires.toDate().toLocaleString();
 }
+
+const card=document.createElement("div");
+
+card.className="keyCard";
 
 card.innerHTML=`
 
@@ -344,6 +340,8 @@ card.innerHTML=`
 <div>Devices: ${(d.devices||[]).length}/${d.max_devices}</div>
 
 <div>User: ${d.used_by||"-"}</div>
+
+<div>Activated: ${activated}</div>
 
 <div>Expires: ${expires}</div>
 
@@ -363,27 +361,27 @@ card.innerHTML=`
 
 const buttons=card.querySelectorAll("button");
 
-/* copy */
+/* COPY */
 
 buttons[0].onclick=()=>{
 navigator.clipboard.writeText(key);
 alert("Copied");
 };
 
-/* extend */
+/* EXTEND */
 
 buttons[1].onclick=()=>extendKey(key,1);
 buttons[2].onclick=()=>extendKey(key,24);
 
-/* reset */
+/* RESET */
 
 buttons[3].onclick=()=>resetKey(key);
 
-/* block */
+/* BLOCK */
 
 buttons[4].onclick=()=>toggleBlock(key,d.blocked);
 
-/* delete */
+/* DELETE */
 
 buttons[5].onclick=()=>{
 if(confirm("Delete key?")){
@@ -409,34 +407,32 @@ stats.innerHTML=`
 
 }
 
-/* ================= ACTIONS ================= */
+/* EXTEND */
 
 async function extendKey(key,hours){
 
 const ref=db.collection("keys").doc(key);
 const doc=await ref.get();
 
-let newExpire=new Date();
+const data=doc.data();
 
-if(doc.data().access_expires){
+let newExpire;
 
-const old=doc.data().access_expires.toDate();
-
-if(old>new Date()){
+if(data.access_expires){
+const old=data.access_expires.toDate();
 newExpire=new Date(old.getTime()+hours*3600000);
 }else{
 newExpire=new Date(Date.now()+hours*3600000);
 }
 
-}else{
-
-newExpire=new Date(Date.now()+hours*3600000);
-
-}
-
-await ref.update({access_expires:newExpire});
+await ref.update({
+access_expires:newExpire,
+duration_hours:(data.duration_hours||0)+hours
+});
 
 }
+
+/* RESET */
 
 async function resetKey(key){
 
@@ -447,11 +443,14 @@ await db.collection("keys").doc(key).update({
 used:false,
 used_by:"",
 devices:[],
+activated_at:null,
 access_expires:null
 
 });
 
 }
+
+/* BLOCK */
 
 async function toggleBlock(key,state){
 
@@ -461,7 +460,7 @@ blocked:!state
 
 }
 
-/* ================= SEARCH ================= */
+/* SEARCH */
 
 searchBox.oninput=()=>{
 
