@@ -3,287 +3,480 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Admin Dashboard</title>
+<title>Secure Admin Panel</title>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <style>
+
 body{
-  margin:0;
-  font-family:system-ui;
-  background:#0f2027;
-  color:white;
+margin:0;
+font-family:system-ui;
+background:#0f2027;
+color:white;
 }
 
 .container{
-  padding:15px;
-  max-width:100%;
+padding:15px;
+max-width:1100px;
+margin:auto;
 }
 
 .card{
-  background:#1c2b3a;
-  padding:15px;
-  border-radius:12px;
-  margin-bottom:15px;
+background:#1c2b3a;
+padding:15px;
+border-radius:12px;
+margin-bottom:15px;
 }
 
 h2{
-  margin:0 0 10px 0;
-  font-size:18px;
+margin:0 0 10px 0;
+font-size:18px;
 }
 
 input{
-  width:100%;
-  padding:10px;
-  margin-bottom:10px;
-  border-radius:8px;
-  border:none;
+width:100%;
+padding:10px;
+margin-bottom:10px;
+border-radius:8px;
+border:none;
 }
 
 button{
-  padding:8px 10px;
-  border:none;
-  border-radius:6px;
-  font-size:12px;
-  cursor:pointer;
-  margin:3px 3px 3px 0;
+padding:7px 10px;
+border:none;
+border-radius:6px;
+font-size:12px;
+cursor:pointer;
+margin:3px;
 }
 
-.primary{ background:#0072ff; color:white; }
-.danger{ background:#ff4d4d; color:white; }
-.secondary{ background:#666; color:white; }
-.success{ background:#00aa66; color:white; }
+.primary{background:#0072ff;color:white}
+.danger{background:#ff4d4d;color:white}
+.success{background:#00aa66;color:white}
+.secondary{background:#666;color:white}
+.warning{background:#ffaa00;color:black}
+
+.stats{
+display:flex;
+flex-wrap:wrap;
+gap:10px;
+margin-bottom:10px;
+}
+
+.stat{
+background:#15222e;
+padding:10px;
+border-radius:8px;
+font-size:12px;
+}
+
+.search{
+margin-bottom:10px;
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+gap:10px;
+}
 
 .keyCard{
-  background:#15222e;
-  padding:10px;
-  border-radius:10px;
-  margin-bottom:8px;
-  font-size:12px;
+background:#15222e;
+padding:10px;
+border-radius:10px;
+font-size:12px;
 }
 
 .keyHeader{
-  font-weight:600;
-  margin-bottom:5px;
-  word-break:break-all;
+font-weight:600;
+word-break:break-all;
+margin-bottom:5px;
 }
 
-.status-used{ color:#00ff99; }
-.status-unused{ color:#ffaa00; }
-.status-blocked{ color:#ff4d4d; }
+.badge{
+padding:2px 6px;
+border-radius:5px;
+font-size:11px;
+}
+
+.active{background:#00aa66}
+.expired{background:#ff8800}
+.blocked{background:#ff4d4d}
+.unused{background:#777}
 
 .flex{
-  display:flex;
-  flex-wrap:wrap;
-  gap:5px;
+display:flex;
+flex-wrap:wrap;
+gap:4px;
+margin-top:6px;
 }
+
 </style>
 </head>
+
 <body>
 
 <div class="container">
 
 <div id="loginBox" class="card">
 <h2>Admin Login</h2>
-<input type="email" id="email" placeholder="Email">
-<input type="password" id="password" placeholder="Password">
+
+<input id="email" placeholder="Email">
+<input id="password" type="password" placeholder="Password">
+
 <button class="primary" id="loginBtn">Login</button>
+
 </div>
 
-<div id="dashboard" style="display:none;">
+
+<div id="dashboard" style="display:none">
 
 <div class="card">
+
 <h2>Generate Key</h2>
-<input type="text" id="customKey" placeholder="Custom Key (optional)">
-<input type="number" id="duration" placeholder="Duration (hours)">
-<input type="number" id="maxDevices" placeholder="Max Devices (default 1)">
+
+<input id="customKey" placeholder="Custom Key (optional)">
+<input id="duration" type="number" placeholder="Duration Hours">
+<input id="maxDevices" type="number" placeholder="Max Devices (default 1)">
+<input id="note" placeholder="Notes (optional)">
+
 <button class="primary" id="generateBtn">Generate</button>
 <button class="secondary" id="logoutBtn">Logout</button>
+
 <div id="genOutput"></div>
+
 </div>
+
 
 <div class="card">
-<h2>All Keys</h2>
-<div id="stats"></div>
-<div id="keysContainer"></div>
+
+<h2>Dashboard</h2>
+
+<div id="stats" class="stats"></div>
+
+<input class="search" id="searchBox" placeholder="Search key / UID">
+
+<div id="keysContainer" class="grid"></div>
+
 </div>
 
 </div>
+
 </div>
 
 <script>
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCunwuvg0saSDxN7HbNwmwaIdOuBYA-tX0",
-  authDomain: "pw--login.firebaseapp.com",
-  projectId: "pw--login",
-  appId: "1:1062401933606:web:6f0fc04649cc77707841e7"
+const firebaseConfig={
+apiKey:"AIzaSyCunwuvg0saSDxN7HbNwmwaIdOuBYA-tX0",
+authDomain:"pw--login.firebaseapp.com",
+projectId:"pw--login",
+appId:"1:1062401933606:web:6f0fc04649cc77707841e7"
 };
 
 firebase.initializeApp(firebaseConfig);
 
-const auth = firebase.auth();
-const db = firebase.firestore();
+const auth=firebase.auth();
+const db=firebase.firestore();
 
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
 /* ================= AUTH ================= */
 
-auth.onAuthStateChanged(async user => {
+auth.onAuthStateChanged(async user=>{
 
-  if(!user){
-    showLogin();
-    return;
-  }
+if(!user){
+showLogin();
+return;
+}
 
-  const adminDoc = await db.collection("admins").doc(user.uid).get();
-  if(!adminDoc.exists){
-    alert("Not authorized");
-    auth.signOut();
-    return;
-  }
+const adminDoc=await db.collection("admins").doc(user.uid).get();
 
-  showDashboard();
-  loadKeys();
+if(!adminDoc.exists){
+alert("Not authorized");
+auth.signOut();
+return;
+}
+
+showDashboard();
+loadKeys();
+
 });
 
 function showLogin(){
-  document.getElementById("loginBox").style.display="block";
-  document.getElementById("dashboard").style.display="none";
+loginBox.style.display="block";
+dashboard.style.display="none";
 }
 
 function showDashboard(){
-  document.getElementById("loginBox").style.display="none";
-  document.getElementById("dashboard").style.display="block";
+loginBox.style.display="none";
+dashboard.style.display="block";
 }
 
 /* ================= LOGIN ================= */
 
-document.getElementById("loginBtn").onclick = () => {
-  auth.signInWithEmailAndPassword(
-    document.getElementById("email").value,
-    document.getElementById("password").value
-  ).catch(e=>alert(e.message));
+loginBtn.onclick=()=>{
+auth.signInWithEmailAndPassword(
+email.value,
+password.value
+).catch(e=>alert(e.message));
 };
 
-document.getElementById("logoutBtn").onclick = () => auth.signOut();
+logoutBtn.onclick=()=>auth.signOut();
 
 /* ================= GENERATE KEY ================= */
 
 function generateRandomKey(){
-  const chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let key="";
-  const arr=new Uint32Array(10);
-  crypto.getRandomValues(arr);
-  for(let i=0;i<10;i++){
-    key+=chars[arr[i]%chars.length];
-  }
-  return key;
+
+const chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+let key="";
+
+const arr=new Uint32Array(10);
+
+crypto.getRandomValues(arr);
+
+for(let i=0;i<10;i++){
+key+=chars[arr[i]%chars.length];
 }
 
-document.getElementById("generateBtn").onclick = async () => {
+return key;
+}
 
-  const custom = document.getElementById("customKey").value.trim();
-  const duration = parseInt(document.getElementById("duration").value);
-  const maxDevices = parseInt(document.getElementById("maxDevices").value)||1;
+generateBtn.onclick=async()=>{
 
-  if(!duration){ alert("Enter duration"); return; }
+const custom=customKey.value.trim();
+const duration=parseInt(duration.value);
+const max=parseInt(maxDevices.value)||1;
+const noteText=note.value||"";
 
-  const key = custom || generateRandomKey();
+if(!duration){
+alert("Enter duration");
+return;
+}
 
-  await db.collection("keys").doc(key).set({
-    active:true,
-    blocked:false,
-    used:false,
-    used_by:"",
-    duration_hours:duration,
-    max_devices:maxDevices,
-    devices:[],
-    created_at: firebase.firestore.FieldValue.serverTimestamp()
-  });
+const key=custom||generateRandomKey();
 
-  document.getElementById("genOutput").innerText="Generated: "+key;
-  loadKeys();
+await db.collection("keys").doc(key).set({
+
+active:true,
+blocked:false,
+used:false,
+used_by:"",
+devices:[],
+duration_hours:duration,
+max_devices:max,
+note:noteText,
+created_at:firebase.firestore.FieldValue.serverTimestamp(),
+access_expires:null
+
+});
+
+genOutput.innerText="Generated: "+key;
+
 };
 
 /* ================= LOAD KEYS ================= */
 
-async function loadKeys(){
+function loadKeys(){
 
-  const snapshot = await db.collection("keys").get();
-  const container = document.getElementById("keysContainer");
-  container.innerHTML="";
+db.collection("keys").onSnapshot(snapshot=>{
 
-  let total=0, used=0, blocked=0;
+keysContainer.innerHTML="";
 
-  snapshot.forEach(doc=>{
-    total++;
-    const d=doc.data();
+let total=0;
+let active=0;
+let expired=0;
+let blocked=0;
+let unused=0;
 
-    let status="Unused";
-    let statusClass="status-unused";
+snapshot.forEach(doc=>{
 
-    if(d.blocked){
-      status="Blocked";
-      statusClass="status-blocked";
-      blocked++;
-    }
-    else if(d.used){
-      status="Used";
-      statusClass="status-used";
-      used++;
-    }
+total++;
 
-    const card=document.createElement("div");
-    card.className="keyCard";
+const d=doc.data();
+const key=doc.id;
 
-    card.innerHTML=`
-      <div class="keyHeader">${doc.id}</div>
-      <div class="${statusClass}">${status}</div>
-      <div>Duration: ${d.duration_hours}h</div>
-      <div>Used By: ${d.used_by||"-"}</div>
-      <div class="flex">
-        <button class="secondary">Edit</button>
-        <button class="danger">Delete</button>
-        <button class="primary">Block</button>
-      </div>
-    `;
+let status="unused";
+let label="Unused";
 
-    const buttons=card.querySelectorAll("button");
-
-    // Edit
-    buttons[0].onclick=async()=>{
-      const newDuration=prompt("New duration:",d.duration_hours);
-      if(newDuration){
-        await db.collection("keys").doc(doc.id)
-          .update({duration_hours:parseInt(newDuration)});
-        loadKeys();
-      }
-    };
-
-    // Delete
-    buttons[1].onclick=async()=>{
-      if(confirm("Delete key?")){
-        await db.collection("keys").doc(doc.id).delete();
-        loadKeys();
-      }
-    };
-
-    // Block
-    buttons[2].onclick=async()=>{
-      await db.collection("keys").doc(doc.id)
-        .update({blocked:true});
-      loadKeys();
-    };
-
-    container.appendChild(card);
-  });
-
-  document.getElementById("stats").innerText=
-    `Total:${total} | Used:${used} | Blocked:${blocked}`;
+if(d.blocked){
+status="blocked";
+label="Blocked";
+blocked++;
 }
+else if(d.used){
+
+if(d.access_expires && d.access_expires.toDate()<new Date()){
+status="expired";
+label="Expired";
+expired++;
+}else{
+status="active";
+label="Active";
+active++;
+}
+
+}else{
+unused++;
+}
+
+const card=document.createElement("div");
+
+card.className="keyCard";
+
+let expires="Not activated";
+
+if(d.access_expires){
+expires=d.access_expires.toDate().toLocaleString();
+}
+
+card.innerHTML=`
+
+<div class="keyHeader">${key}</div>
+
+<div class="badge ${status}">${label}</div>
+
+<div>Duration: ${d.duration_hours}h</div>
+
+<div>Devices: ${(d.devices||[]).length}/${d.max_devices}</div>
+
+<div>User: ${d.used_by||"-"}</div>
+
+<div>Expires: ${expires}</div>
+
+<div>Note: ${d.note||"-"}</div>
+
+<div class="flex">
+
+<button class="secondary copy">Copy</button>
+<button class="success extend">+1h</button>
+<button class="success extend24">+24h</button>
+<button class="warning reset">Reset</button>
+<button class="primary block">${d.blocked?"Unblock":"Block"}</button>
+<button class="danger delete">Delete</button>
+
+</div>
+`;
+
+const buttons=card.querySelectorAll("button");
+
+/* copy */
+
+buttons[0].onclick=()=>{
+navigator.clipboard.writeText(key);
+alert("Copied");
+};
+
+/* extend */
+
+buttons[1].onclick=()=>extendKey(key,1);
+buttons[2].onclick=()=>extendKey(key,24);
+
+/* reset */
+
+buttons[3].onclick=()=>resetKey(key);
+
+/* block */
+
+buttons[4].onclick=()=>toggleBlock(key,d.blocked);
+
+/* delete */
+
+buttons[5].onclick=()=>{
+if(confirm("Delete key?")){
+db.collection("keys").doc(key).delete();
+}
+};
+
+keysContainer.appendChild(card);
+
+});
+
+stats.innerHTML=`
+
+<div class="stat">Total: ${total}</div>
+<div class="stat">Active: ${active}</div>
+<div class="stat">Expired: ${expired}</div>
+<div class="stat">Blocked: ${blocked}</div>
+<div class="stat">Unused: ${unused}</div>
+
+`;
+
+});
+
+}
+
+/* ================= ACTIONS ================= */
+
+async function extendKey(key,hours){
+
+const ref=db.collection("keys").doc(key);
+const doc=await ref.get();
+
+let newExpire=new Date();
+
+if(doc.data().access_expires){
+
+const old=doc.data().access_expires.toDate();
+
+if(old>new Date()){
+newExpire=new Date(old.getTime()+hours*3600000);
+}else{
+newExpire=new Date(Date.now()+hours*3600000);
+}
+
+}else{
+
+newExpire=new Date(Date.now()+hours*3600000);
+
+}
+
+await ref.update({access_expires:newExpire});
+
+}
+
+async function resetKey(key){
+
+if(!confirm("Reset key?")) return;
+
+await db.collection("keys").doc(key).update({
+
+used:false,
+used_by:"",
+devices:[],
+access_expires:null
+
+});
+
+}
+
+async function toggleBlock(key,state){
+
+await db.collection("keys").doc(key).update({
+blocked:!state
+});
+
+}
+
+/* ================= SEARCH ================= */
+
+searchBox.oninput=()=>{
+
+const text=searchBox.value.toLowerCase();
+
+document.querySelectorAll(".keyCard").forEach(card=>{
+
+if(card.innerText.toLowerCase().includes(text))
+card.style.display="block";
+else
+card.style.display="none";
+
+});
+
+};
 
 </script>
 
