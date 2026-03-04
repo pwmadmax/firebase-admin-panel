@@ -10,92 +10,109 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <style>
+
 body{
 margin:0;
 font-family:system-ui;
-background:#0f2027;
-color:white;
+background:#0b0f14;
+color:#e6edf3;
 }
 
 .container{
-padding:15px;
+padding:20px;
 max-width:1100px;
 margin:auto;
 }
 
 .card{
-background:#1c2b3a;
-padding:15px;
+background:#161b22;
+padding:18px;
 border-radius:12px;
-margin-bottom:15px;
+margin-bottom:18px;
+box-shadow:0 0 0 1px #30363d;
+}
+
+h2{
+margin:0 0 12px 0;
+font-weight:600;
 }
 
 input{
 width:100%;
 padding:10px;
 margin-bottom:10px;
-border-radius:8px;
-border:none;
+border-radius:6px;
+border:1px solid #30363d;
+background:#0d1117;
+color:white;
 }
 
 button{
-padding:7px 10px;
+padding:7px 12px;
 border:none;
 border-radius:6px;
 font-size:12px;
 cursor:pointer;
-margin:3px;
+margin:4px;
 }
 
-.primary{background:#0072ff;color:white}
-.danger{background:#ff4d4d;color:white}
-.success{background:#00aa66;color:white}
-.secondary{background:#666;color:white}
-.warning{background:#ffaa00;color:black}
+.primary{background:#238636;color:white}
+.secondary{background:#30363d;color:white}
+.success{background:#2ea043;color:white}
+.warning{background:#d29922;color:black}
+.danger{background:#da3633;color:white}
 
 .stats{
 display:flex;
 flex-wrap:wrap;
 gap:10px;
-margin-bottom:10px;
+margin-bottom:15px;
 }
 
 .stat{
-background:#15222e;
-padding:10px;
+background:#0d1117;
+padding:10px 14px;
 border-radius:8px;
-font-size:12px;
+font-size:13px;
+border:1px solid #30363d;
 }
 
 .grid{
 display:grid;
-grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
-gap:10px;
+grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+gap:12px;
 }
 
 .keyCard{
-background:#15222e;
-padding:10px;
+background:#0d1117;
+border:1px solid #30363d;
+padding:14px;
 border-radius:10px;
-font-size:12px;
 }
 
 .keyHeader{
 font-weight:600;
+margin-bottom:6px;
 word-break:break-all;
-margin-bottom:5px;
 }
 
 .badge{
-padding:2px 6px;
-border-radius:5px;
+padding:3px 7px;
+border-radius:6px;
 font-size:11px;
+margin-bottom:8px;
+display:inline-block;
 }
 
-.active{background:#00aa66}
-.expired{background:#ff8800}
-.blocked{background:#ff4d4d}
-.unused{background:#777}
+.active{background:#2ea043}
+.expired{background:#d29922}
+.blocked{background:#da3633}
+.unused{background:#6e7681}
+
+.actions{
+margin-top:8px;
+}
+
 </style>
 </head>
 
@@ -116,11 +133,10 @@ font-size:11px;
 <h2>Generate Key</h2>
 
 <input id="customKey" placeholder="Custom Key (optional)">
-<input id="durationInput" type="number" placeholder="Duration Hours">
-<input id="maxDevices" type="number" placeholder="Max Devices (default 1)">
-<input id="note" placeholder="Notes">
+<input id="durationInput" type="number" placeholder="Duration (hours)">
+<input id="note" placeholder="Note (optional)">
 
-<button class="primary" id="generateBtn">Generate</button>
+<button class="primary" id="generateBtn">Generate Key</button>
 <button class="secondary" id="logoutBtn">Logout</button>
 
 <div id="genOutput"></div>
@@ -211,7 +227,6 @@ generateBtn.onclick=async()=>{
 
 const custom=document.getElementById("customKey").value.trim();
 const duration=parseInt(document.getElementById("durationInput").value);
-const max=parseInt(document.getElementById("maxDevices").value)||1;
 const note=document.getElementById("note").value||"";
 
 if(!duration){
@@ -222,9 +237,9 @@ return;
 const key=custom||generateRandomKey();
 
 const ref=db.collection("keys").doc(key);
-const existing=await ref.get();
+const exists=await ref.get();
 
-if(existing.exists){
+if(exists.exists){
 alert("Key already exists");
 return;
 }
@@ -234,9 +249,7 @@ active:true,
 blocked:false,
 used:false,
 used_by:"",
-devices:[],
 duration_hours:duration,
-max_devices:max,
 note:note,
 created_at:firebase.firestore.Timestamp.now(),
 activated_at:null,
@@ -285,16 +298,16 @@ unused++;
 }
 
 let activated="Not activated";
+
 if(d.activated_at){
 activated=d.activated_at.toDate().toLocaleString();
 }
 
 let expires="Not activated";
+
 if(d.access_expires){
 expires=d.access_expires.toDate().toLocaleString();
 }
-
-const devices=(d.devices||[]).length;
 
 const card=document.createElement("div");
 
@@ -303,21 +316,22 @@ card.className="keyCard";
 card.innerHTML=`
 
 <div class="keyHeader">${key}</div>
+
 <div class="badge ${status}">${label}</div>
 
-<div>Devices: ${devices}/${d.max_devices}</div>
-<div>User: ${d.used_by||"-"}</div>
-<div>Activated: ${activated}</div>
-<div>Expires: ${expires}</div>
-<div>Note: ${d.note||"-"}</div>
+<div><b>User:</b> ${d.used_by||"-"}</div>
+<div><b>Activated:</b> ${activated}</div>
+<div><b>Expires:</b> ${expires}</div>
+<div><b>Note:</b> ${d.note||"-"}</div>
 
-<button onclick="copyKey('${key}')">Copy</button>
-<button onclick="extendKey('${key}',1)">+1h</button>
-<button onclick="extendKey('${key}',24)">+24h</button>
-<button onclick="resetDevices('${key}')">Reset Devices</button>
-<button onclick="resetKey('${key}')">Reset</button>
-<button onclick="toggleBlock('${key}',${d.blocked})">${d.blocked?'Unblock':'Block'}</button>
-<button onclick="deleteKey('${key}')">Delete</button>
+<div class="actions">
+<button class="secondary" onclick="copyKey('${key}')">Copy</button>
+<button class="success" onclick="extendKey('${key}',1)">+1h</button>
+<button class="success" onclick="extendKey('${key}',24)">+24h</button>
+<button class="warning" onclick="resetKey('${key}')">Reset</button>
+<button class="primary" onclick="toggleBlock('${key}',${d.blocked})">${d.blocked?'Unblock':'Block'}</button>
+<button class="danger" onclick="deleteKey('${key}')">Delete</button>
+</div>
 
 `;
 
@@ -357,14 +371,8 @@ expire=new Date(data.access_expires.toDate().getTime()+hours*3600000);
 expire=new Date(Date.now()+hours*3600000);
 }
 
-await ref.update({
-access_expires:expire
-});
+await ref.update({access_expires:expire});
 
-}
-
-async function resetDevices(key){
-await db.collection("keys").doc(key).update({devices:[]});
 }
 
 async function resetKey(key){
@@ -372,7 +380,6 @@ async function resetKey(key){
 await db.collection("keys").doc(key).update({
 used:false,
 used_by:"",
-devices:[],
 activated_at:null,
 access_expires:null
 });
