@@ -471,10 +471,16 @@ expire=new Date(data.access_expires.toDate().getTime()+hours*3600000);
 expire=new Date(Date.now()+hours*3600000);
 }
 
-await ref.update({access_expires:expire});
+/* FIX: also update duration_hours */
+
+const newDuration=(data.duration_hours || 0) + hours;
+
+await ref.update({
+access_expires:expire,
+duration_hours:newDuration
+});
 
 }
-
 async function resetKey(key){
 
 await db.collection("keys").doc(key).update({
