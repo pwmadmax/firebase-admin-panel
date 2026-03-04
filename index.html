@@ -34,7 +34,6 @@ box-shadow:0 0 0 1px #30363d;
 
 h2{
 margin:0 0 12px 0;
-font-weight:600;
 }
 
 input{
@@ -94,6 +93,7 @@ border-radius:10px;
 font-weight:600;
 margin-bottom:6px;
 word-break:break-all;
+font-size:16px;
 }
 
 .badge{
@@ -108,6 +108,20 @@ display:inline-block;
 .expired{background:#d29922}
 .blocked{background:#da3633}
 .unused{background:#6e7681}
+
+.generatedBox{
+margin-top:10px;
+padding:12px;
+background:#0d1117;
+border:1px solid #30363d;
+border-radius:8px;
+}
+
+.generatedKey{
+font-size:18px;
+font-weight:600;
+margin-bottom:6px;
+}
 
 .actions{
 margin-top:8px;
@@ -130,6 +144,7 @@ margin-top:8px;
 <div id="dashboard" style="display:none">
 
 <div class="card">
+
 <h2>Generate Key</h2>
 
 <input id="customKey" placeholder="Custom Key (optional)">
@@ -140,6 +155,7 @@ margin-top:8px;
 <button class="secondary" id="logoutBtn">Logout</button>
 
 <div id="genOutput"></div>
+
 </div>
 
 <div class="card">
@@ -225,9 +241,9 @@ return key;
 
 generateBtn.onclick=async()=>{
 
-const custom=document.getElementById("customKey").value.trim();
-const duration=parseInt(document.getElementById("durationInput").value);
-const note=document.getElementById("note").value||"";
+const custom=customKey.value.trim();
+const duration=parseInt(durationInput.value);
+const noteText=note.value||"";
 
 if(!duration){
 alert("Enter duration");
@@ -250,13 +266,28 @@ blocked:false,
 used:false,
 used_by:"",
 duration_hours:duration,
-note:note,
+note:noteText,
 created_at:firebase.firestore.Timestamp.now(),
 activated_at:null,
 access_expires:null
 });
 
-genOutput.innerText="Generated: "+key;
+/* Generated Key UI */
+
+genOutput.innerHTML=`
+<div class="generatedBox">
+
+<div>Generated Key</div>
+
+<div class="generatedKey">${key}</div>
+
+<div>Duration: ${duration} hours</div>
+<div>Note: ${noteText || "-"}</div>
+
+<button class="success" onclick="copyKey('${key}')">Copy Key</button>
+
+</div>
+`;
 
 };
 
@@ -319,6 +350,7 @@ card.innerHTML=`
 
 <div class="badge ${status}">${label}</div>
 
+<div><b>Duration:</b> ${d.duration_hours}h</div>
 <div><b>User:</b> ${d.used_by||"-"}</div>
 <div><b>Activated:</b> ${activated}</div>
 <div><b>Expires:</b> ${expires}</div>
