@@ -10,7 +10,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <style>
-
 body{
 margin:0;
 font-family:system-ui;
@@ -29,11 +28,6 @@ background:#1c2b3a;
 padding:15px;
 border-radius:12px;
 margin-bottom:15px;
-}
-
-h2{
-margin:0 0 10px 0;
-font-size:18px;
 }
 
 input{
@@ -73,10 +67,6 @@ border-radius:8px;
 font-size:12px;
 }
 
-.search{
-margin-bottom:10px;
-}
-
 .grid{
 display:grid;
 grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
@@ -106,14 +96,6 @@ font-size:11px;
 .expired{background:#ff8800}
 .blocked{background:#ff4d4d}
 .unused{background:#777}
-
-.flex{
-display:flex;
-flex-wrap:wrap;
-gap:4px;
-margin-top:6px;
-}
-
 </style>
 </head>
 
@@ -123,41 +105,32 @@ margin-top:6px;
 
 <div id="loginBox" class="card">
 <h2>Admin Login</h2>
-
 <input id="email" placeholder="Email">
 <input id="password" type="password" placeholder="Password">
-
 <button class="primary" id="loginBtn">Login</button>
-
 </div>
-
 
 <div id="dashboard" style="display:none">
 
 <div class="card">
-
 <h2>Generate Key</h2>
 
 <input id="customKey" placeholder="Custom Key (optional)">
 <input id="durationInput" type="number" placeholder="Duration Hours">
 <input id="maxDevices" type="number" placeholder="Max Devices (default 1)">
-<input id="note" placeholder="Notes (optional)">
+<input id="note" placeholder="Notes">
 
 <button class="primary" id="generateBtn">Generate</button>
 <button class="secondary" id="logoutBtn">Logout</button>
 
 <div id="genOutput"></div>
-
 </div>
-
 
 <div class="card">
 
-<h2>Dashboard</h2>
-
 <div id="stats" class="stats"></div>
 
-<input class="search" id="searchBox" placeholder="Search key / UID">
+<input id="searchBox" placeholder="Search key / UID">
 
 <div id="keysContainer" class="grid"></div>
 
@@ -217,12 +190,11 @@ auth.signInWithEmailAndPassword(email.value,password.value)
 
 logoutBtn.onclick=()=>auth.signOut();
 
-/* RANDOM KEY */
+/* KEY GENERATOR */
 
 function generateRandomKey(){
 
 const chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-
 let key="";
 
 for(let i=0;i<10;i++){
@@ -230,6 +202,7 @@ key+=chars[Math.floor(Math.random()*chars.length)];
 }
 
 return key;
+
 }
 
 /* GENERATE KEY */
@@ -239,7 +212,7 @@ generateBtn.onclick=async()=>{
 const custom=document.getElementById("customKey").value.trim();
 const duration=parseInt(document.getElementById("durationInput").value);
 const max=parseInt(document.getElementById("maxDevices").value)||1;
-const noteText=document.getElementById("note").value||"";
+const note=document.getElementById("note").value||"";
 
 if(!duration){
 alert("Enter duration");
@@ -248,8 +221,15 @@ return;
 
 const key=custom||generateRandomKey();
 
-await db.collection("keys").doc(key).set({
+const ref=db.collection("keys").doc(key);
+const existing=await ref.get();
 
+if(existing.exists){
+alert("Key already exists");
+return;
+}
+
+await ref.set({
 active:true,
 blocked:false,
 used:false,
@@ -257,11 +237,10 @@ used_by:"",
 devices:[],
 duration_hours:duration,
 max_devices:max,
-note:noteText,
+note:note,
 created_at:firebase.firestore.Timestamp.now(),
 activated_at:null,
 access_expires:null
-
 });
 
 genOutput.innerText="Generated: "+key;
@@ -272,15 +251,13 @@ genOutput.innerText="Generated: "+key;
 
 function loadKeys(){
 
-db.collection("keys").onSnapshot(snapshot=>{
+db.collection("keys")
+.orderBy("created_at","desc")
+.onSnapshot(snapshot=>{
 
 keysContainer.innerHTML="";
 
-let total=0;
-let active=0;
-let expired=0;
-let blocked=0;
-let unused=0;
+let total=0,active=0,expired=0,blocked=0,unused=0;
 
 snapshot.forEach(doc=>{
 
@@ -293,20 +270,14 @@ let status="unused";
 let label="Unused";
 
 if(d.blocked){
-status="blocked";
-label="Blocked";
-blocked++;
+status="blocked";label="Blocked";blocked++;
 }
 else if(d.used){
 
 if(d.access_expires && d.access_expires.toDate()<new Date()){
-status="expired";
-label="Expired";
-expired++;
+status="expired";label="Expired";expired++;
 }else{
-status="active";
-label="Active";
-active++;
+status="active";label="Active";active++;
 }
 
 }else{
@@ -314,16 +285,16 @@ unused++;
 }
 
 let activated="Not activated";
-
 if(d.activated_at){
 activated=d.activated_at.toDate().toLocaleString();
 }
 
 let expires="Not activated";
-
 if(d.access_expires){
 expires=d.access_expires.toDate().toLocaleString();
 }
+
+const devices=(d.devices||[]).length;
 
 const card=document.createElement("div");
 
@@ -332,149 +303,99 @@ card.className="keyCard";
 card.innerHTML=`
 
 <div class="keyHeader">${key}</div>
-
 <div class="badge ${status}">${label}</div>
 
-<div>Duration: ${d.duration_hours}h</div>
-
-<div>Devices: ${(d.devices||[]).length}/${d.max_devices}</div>
-
+<div>Devices: ${devices}/${d.max_devices}</div>
 <div>User: ${d.used_by||"-"}</div>
-
 <div>Activated: ${activated}</div>
-
 <div>Expires: ${expires}</div>
-
 <div>Note: ${d.note||"-"}</div>
 
-<div class="flex">
+<button onclick="copyKey('${key}')">Copy</button>
+<button onclick="extendKey('${key}',1)">+1h</button>
+<button onclick="extendKey('${key}',24)">+24h</button>
+<button onclick="resetDevices('${key}')">Reset Devices</button>
+<button onclick="resetKey('${key}')">Reset</button>
+<button onclick="toggleBlock('${key}',${d.blocked})">${d.blocked?'Unblock':'Block'}</button>
+<button onclick="deleteKey('${key}')">Delete</button>
 
-<button class="secondary copy">Copy</button>
-<button class="success extend">+1h</button>
-<button class="success extend24">+24h</button>
-<button class="warning reset">Reset</button>
-<button class="primary block">${d.blocked?"Unblock":"Block"}</button>
-<button class="danger delete">Delete</button>
-
-</div>
 `;
-
-const buttons=card.querySelectorAll("button");
-
-/* COPY */
-
-buttons[0].onclick=()=>{
-navigator.clipboard.writeText(key);
-alert("Copied");
-};
-
-/* EXTEND */
-
-buttons[1].onclick=()=>extendKey(key,1);
-buttons[2].onclick=()=>extendKey(key,24);
-
-/* RESET */
-
-buttons[3].onclick=()=>resetKey(key);
-
-/* BLOCK */
-
-buttons[4].onclick=()=>toggleBlock(key,d.blocked);
-
-/* DELETE */
-
-buttons[5].onclick=()=>{
-if(confirm("Delete key?")){
-db.collection("keys").doc(key).delete();
-}
-};
 
 keysContainer.appendChild(card);
 
 });
 
 stats.innerHTML=`
-
 <div class="stat">Total: ${total}</div>
 <div class="stat">Active: ${active}</div>
 <div class="stat">Expired: ${expired}</div>
 <div class="stat">Blocked: ${blocked}</div>
 <div class="stat">Unused: ${unused}</div>
-
 `;
 
 });
 
 }
 
-/* EXTEND */
+/* ACTIONS */
+
+function copyKey(key){
+navigator.clipboard.writeText(key);
+}
 
 async function extendKey(key,hours){
 
 const ref=db.collection("keys").doc(key);
 const doc=await ref.get();
-
 const data=doc.data();
 
-let newExpire;
+let expire;
 
 if(data.access_expires){
-const old=data.access_expires.toDate();
-newExpire=new Date(old.getTime()+hours*3600000);
+expire=new Date(data.access_expires.toDate().getTime()+hours*3600000);
 }else{
-newExpire=new Date(Date.now()+hours*3600000);
+expire=new Date(Date.now()+hours*3600000);
 }
 
 await ref.update({
-access_expires:newExpire,
-duration_hours:(data.duration_hours||0)+hours
+access_expires:expire
 });
 
 }
 
-/* RESET */
+async function resetDevices(key){
+await db.collection("keys").doc(key).update({devices:[]});
+}
 
 async function resetKey(key){
 
-if(!confirm("Reset key?")) return;
-
 await db.collection("keys").doc(key).update({
-
 used:false,
 used_by:"",
 devices:[],
 activated_at:null,
 access_expires:null
-
 });
 
 }
 
-/* BLOCK */
-
 async function toggleBlock(key,state){
+await db.collection("keys").doc(key).update({blocked:!state});
+}
 
-await db.collection("keys").doc(key).update({
-blocked:!state
-});
-
+async function deleteKey(key){
+if(confirm("Delete key?")){
+await db.collection("keys").doc(key).delete();
+}
 }
 
 /* SEARCH */
 
 searchBox.oninput=()=>{
-
 const text=searchBox.value.toLowerCase();
-
 document.querySelectorAll(".keyCard").forEach(card=>{
-
-if(card.innerText.toLowerCase().includes(text))
-card.style.display="block";
-else
-card.style.display="none";
-
+card.style.display=card.innerText.toLowerCase().includes(text)?"block":"none";
 });
-
 };
 
 </script>
